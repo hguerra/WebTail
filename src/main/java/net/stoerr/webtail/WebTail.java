@@ -4,22 +4,24 @@
  * All rights reserved.
  *
  * WebTail.java created by hps at 29.05.2013
+ * WebTail.java updated by Heitor Carneiro at 29.06.2020
  */
 package net.stoerr.webtail;
 
-import java.io.IOException;
-import java.io.InputStream;
-
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
+import com.wuriyanto.jvmstash.Stash;
+import com.wuriyanto.jvmstash.StashException;
+import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Simplest possible implementation of tail -F for a file on the web : retrieves endlessly the lines that are new in a URL.
@@ -28,30 +30,56 @@ import org.apache.http.impl.client.DefaultHttpClient;
  *
  * @author hps
  * @since 13.3 , 29.05.2013
+ * @author Heitor Carneiro
+ * @since 14 , 29.06.2020
  */
 public class WebTail {
 
+    private static final Logger LOGGER = Logger.getLogger(Stash.class.getName());
     private static final int SLEEPTIME = 5000;
 
     private final String url;
+    private final String logstashHost;
+    private final Integer logstashPort;
     private final HttpClient httpClient = new DefaultHttpClient();
     private long lastread = Long.MAX_VALUE;
-    private byte[] buf = new byte[65536];
+    private final byte[] buf = new byte[65536];
+    private final Stash stash;
 
     public static void main(String[] args) throws Exception {
         new WebTail(args).run();
     }
 
-    public WebTail(String[] args) {
-        url = args[0];
-        if (1 < args.length) {
-            final HttpHost proxy = new HttpHost(args[1], Integer.valueOf(args[2]));
+    public WebTail(String[] args) throws StashException {
+        List<String> validArgs = new ArrayList<>();
+        for (String arg : args) {
+            if (arg != null && !arg.trim().equals("")) {
+                validArgs.add(arg);
+            }
+        }
+
+        int size = validArgs.size();
+        if (size < 3) {
+            throw new IllegalArgumentException("Arguments 'URL', 'LOGSTASH_HOST', 'LOGSTASH_PORT' are mandatory.");
+        }
+
+        url = validArgs.get(0);
+        logstashHost = validArgs.get(1);
+        logstashPort = Integer.valueOf(validArgs.get(2));
+        if (size == 5) {
+            final HttpHost proxy = new HttpHost(validArgs.get(3), Integer.parseInt(validArgs.get(4)));
             httpClient.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
         }
+
+        this.stash = new Stash.Builder()
+                .setHost(logstashHost)
+                .setPort(logstashPort)
+                .setSecure(false)
+                .build();
     }
 
     private void run() throws Exception {
-        System.out.println("Tailing URL " + url + " starting from " + retrievesize());
+        LOGGER.info("Tailing URL " + url + " starting from " + retrievesize() + " with logstash " + logstashHost + ":" + logstashPort);
         while (true) {
             printNewLoglines();
             Thread.sleep(SLEEPTIME);
@@ -74,8 +102,28 @@ public class WebTail {
     private void writeReceivedContentpart(HttpResponse response) throws IOException {
         HttpEntity entity = response.getEntity();
         InputStream stream = entity.getContent();
+
+        StringBuilder sb = new StringBuilder();
         for (int read; (read = stream.read(buf)) > 0;) {
-            System.out.write(buf, 0, read);
+            String buffer = new String(buf, 0, read);
+            sb.append(buffer);
+        }
+
+        String lineSeparator = "\n";
+        String[] lines = sb
+                .toString()
+                .replaceAll("\\r\\n", lineSeparator)
+                .replaceAll("\\r", lineSeparator)
+                .split(lineSeparator);
+
+        try {
+            stash.connect();
+            for (String line : lines) {
+                stash.write(line.getBytes());
+            }
+            stash.close();
+        } catch (StashException e) {
+            LOGGER.severe("Fail to connect in logstash: " + e.getMessage());
         }
     }
 
@@ -90,7 +138,7 @@ public class WebTail {
 
     private long getContentLength(HttpResponse response) {
         Header contentLength = response.getFirstHeader("Content-Length");
-        long contentLengthValue = Long.valueOf(contentLength.getValue());
+        long contentLengthValue = Long.parseLong(contentLength.getValue());
         if (contentLengthValue < lastread) {
             lastread = contentLengthValue;
         }

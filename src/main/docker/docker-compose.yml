@@ -1,0 +1,37 @@
+version: "3"
+
+networks:
+  services_internal:
+    external: false
+
+services:
+
+  logstash:
+    restart: always
+    image: docker.elastic.co/logstash/logstash:7.8.0
+    environment:
+      - INPUT_TCP_PORT=5000
+      - INPUT_UDP_PORT=5000
+      - INPUT_HTTP_PORT=5001
+      - LOGSTASH_DEBUG=false
+      - APP_NAME=sample
+      - APP_PROFILE=prd
+    volumes:
+      - "$PWD/config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro"
+      - "$PWD/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro"
+    ports:
+      - "5000:5000"
+      - "5000:5000/udp"
+      - "5001:5001"
+    networks:
+      - "services_internal"
+
+  webtail:
+    restart: always
+    image: heitorcarneiro/webtail:0.1
+    environment:
+      - WEBTAIL_URL=http://localhost:9000/logs/java/server.log
+      - WEBTAIL_LOGSTASH_HOST=logstash
+      - WEBTAIL_LOGSTASH_PORT=5000
+    networks:
+      - "services_internal"
