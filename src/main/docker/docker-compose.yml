@@ -28,7 +28,7 @@ services:
 
   webtail:
     restart: always
-    image: heitorcarneiro/webtail:0.1
+    image: heitorcarneiro/webtail:0.3
     environment:
       - WEBTAIL_URL=http://localhost:9000/logs/java/server.log
       - WEBTAIL_LOGSTASH_HOST=logstash

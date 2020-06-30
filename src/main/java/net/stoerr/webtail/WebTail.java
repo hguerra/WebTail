@@ -36,7 +36,8 @@ import java.util.logging.Logger;
 public class WebTail {
 
     private static final Logger LOGGER = Logger.getLogger(Stash.class.getName());
-    private static final int SLEEPTIME = 5000;
+    private static final int SLEEP_TIME = 5000;
+    public static final int MIN_MESSAGE_LENGTH = 4;
 
     private final String url;
     private final String logstashHost;
@@ -82,7 +83,7 @@ public class WebTail {
         LOGGER.info("Tailing URL " + url + " starting from " + retrievesize() + " with logstash " + logstashHost + ":" + logstashPort);
         while (true) {
             printNewLoglines();
-            Thread.sleep(SLEEPTIME);
+            Thread.sleep(SLEEP_TIME);
         }
     }
 
@@ -94,7 +95,7 @@ public class WebTail {
         get.addHeader("Range", "bytes=" + lastread + "-" + currentsize);
         HttpResponse response = httpClient.execute(get);
         if (HttpStatus.SC_PARTIAL_CONTENT != response.getStatusLine().getStatusCode())
-            throw new IllegalStateException("Unexpected status " + response.getStatusLine() + " in \n" + response);
+            throw new IllegalStateException("Unexpected status " + response.getStatusLine() + " in " + response);
         writeReceivedContentpart(response);
         lastread = currentsize;
     }
@@ -119,6 +120,13 @@ public class WebTail {
         try {
             stash.connect();
             for (String line : lines) {
+                if (null == line)
+                    continue;
+
+                String sanitizedLine = line.trim();
+                if (MIN_MESSAGE_LENGTH > sanitizedLine.length())
+                    continue;
+
                 stash.write(line.getBytes());
             }
             stash.close();
@@ -130,14 +138,21 @@ public class WebTail {
     private long retrievesize() throws IOException {
         HttpHead head = new HttpHead(url);
         HttpResponse response = httpClient.execute(head);
+        if (null == response)
+            return lastread;
+
         Header acceptRanges = response.getFirstHeader("Accept-Ranges");
         if (null == acceptRanges || !acceptRanges.getValue().contains("bytes"))
-            throw new IllegalStateException("Ranges not supported in\n" + response);
+            throw new IllegalStateException("Ranges not supported in " + response);
+
         return getContentLength(response);
     }
 
     private long getContentLength(HttpResponse response) {
         Header contentLength = response.getFirstHeader("Content-Length");
+        if (null == contentLength || null == contentLength.getValue())
+            return lastread;
+
         long contentLengthValue = Long.parseLong(contentLength.getValue());
         if (contentLengthValue < lastread) {
             lastread = contentLengthValue;
