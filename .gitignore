@@ -9,6 +9,7 @@ target
 .settings
 .*
 *.bak
+*.log
 
 .idea
 *.iml

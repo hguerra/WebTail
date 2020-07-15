@@ -11,7 +11,7 @@ Build:
 $ mvn clean compile assembly:single
 $ cp -R src/main/docker/* target/
 $ cd target
-$ docker build -t heitorcarneiro/webtail:0.3 .
+$ docker build -t heitorcarneiro/webtail:0.4 .
 ```
 
 Usage:
@@ -58,7 +58,7 @@ services:
 
   webtail:
     restart: always
-    image: heitorcarneiro/webtail:0.3
+    image: heitorcarneiro/webtail:0.4
     environment:
       - WEBTAIL_URL=http://localhost:9000/logs/java/server.log
       - WEBTAIL_LOGSTASH_HOST=logstash
