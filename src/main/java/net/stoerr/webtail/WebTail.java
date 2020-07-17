@@ -117,8 +117,14 @@ public class WebTail {
         if (null == response)
             return;
 
-        if (HttpStatus.SC_PARTIAL_CONTENT != response.getStatusLine().getStatusCode())
-            throw new IllegalStateException("Unexpected status " + response.getStatusLine() + " in " + response);
+        int statusCode = response.getStatusLine().getStatusCode();
+        if (HttpStatus.SC_PARTIAL_CONTENT != statusCode) {
+            LOGGER.warning("Unexpected status " + statusCode + " in " + response);
+
+            if (statusCode < 200 || statusCode > 299) {
+                return;
+            }
+        }
 
         writeReceivedContentpart(response);
         lastread = currentsize;
@@ -216,8 +222,10 @@ public class WebTail {
             return lastread;
 
         Header acceptRanges = response.getFirstHeader("Accept-Ranges");
-        if (null == acceptRanges || !acceptRanges.getValue().contains("bytes"))
-            throw new IllegalStateException("Ranges not supported in " + response);
+        if (null == acceptRanges || !acceptRanges.getValue().contains("bytes")) {
+            LOGGER.warning("Ranges not supported in " + response);
+            return lastread;
+        }
 
         return getContentLength(response);
     }
