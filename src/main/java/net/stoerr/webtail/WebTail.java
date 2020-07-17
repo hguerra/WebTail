@@ -38,7 +38,7 @@ import java.util.logging.Logger;
  */
 public class WebTail {
 
-    private static final Logger LOGGER = DailyLogger.getLogger();
+    private static final Logger LOGGER = LoggerUtil.getLogger();
     private static final int SLEEP_TIME = 5000;
     private static final int MIN_MESSAGE_LENGTH = 4;
 
@@ -64,8 +64,9 @@ public class WebTail {
 
         int size = validArgs.size();
         if (size < 3) {
-            LOGGER.severe("Arguments 'URL', 'LOGSTASH_HOST', 'LOGSTASH_PORT' are mandatory.");
-            System.exit(1);
+            String errorMessage = "Arguments 'URL', 'LOGSTASH_HOST', 'LOGSTASH_PORT' are mandatory.";
+            LOGGER.severe(errorMessage);
+            throw new IllegalArgumentException(errorMessage);
         }
 
         url = validArgs.get(0);

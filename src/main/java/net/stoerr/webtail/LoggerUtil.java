@@ -2,15 +2,15 @@ package net.stoerr.webtail;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.FileHandler;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
+import java.util.logging.*;
 
-public class DailyLogger {
+public class LoggerUtil {
 
     public static final String LOGGER_NAME = "WebTail";
     public static final String LOGS_FOLDER = "logs";
@@ -18,7 +18,7 @@ public class DailyLogger {
     private static Logger logger;
     private static FileHandler fh;
 
-    public static Logger getLogger() {
+    public static Logger getDailyLogger() {
         if (logger == null) {
             initLogger();
 
@@ -61,6 +61,14 @@ public class DailyLogger {
         return logger;
     }
 
+    public static Logger getLogger() {
+        if (logger == null) {
+            initLogger();
+        }
+
+        return logger;
+    }
+
     private static FileHandler createFilehandler(String dateForName) throws SecurityException, IOException {
         File fileFolder = new File(LOGS_FOLDER);
         // Create folder log if it doesn't exist
@@ -90,11 +98,27 @@ public class DailyLogger {
             fh = new FileHandler(LOGS_FOLDER + File.separator + new java.sql.Date(System.currentTimeMillis()) + ".log", appendToFile);
 
             logger.addHandler(fh);
-            SimpleFormatter formatter = new SimpleFormatter();
-            fh.setFormatter(formatter);
+            fh.setFormatter(new Formatter() {
+                @Override
+                public String format(LogRecord record) {
+                    SimpleDateFormat logTime = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
+                    Calendar cal = new GregorianCalendar();
+                    cal.setTimeInMillis(record.getMillis());
+                    return
+                            logTime.format(cal.getTime())
+                                    + " "
+                                    + record.getLevel()
+                                    + " "
+                                    + record.getSourceClassName().substring(record.getSourceClassName().lastIndexOf(".") + 1)
+                                    + "."
+                                    + record.getSourceMethodName()
+                                    + " "
+                                    + record.getMessage() + "\n";
+                }
+            });
 
             // the following statement is used to log any messages
-            logger.info("DailyLogger initialized...");
+            logger.info(LOGGER_NAME + " initialized...");
         } catch (SecurityException | IOException e) {
             logger.warning("Problem at initializing logger... " + e.getMessage());
         }
